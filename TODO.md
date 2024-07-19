@@ -1,0 +1,3 @@
+- [ ] Complete function that show a single todo detail.
+- [ ] Complete add a new todo to database. (Fix text box!)
+- [ ] Create .env file.
