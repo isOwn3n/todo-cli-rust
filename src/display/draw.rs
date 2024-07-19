@@ -6,13 +6,19 @@ use crossterm::{
 };
 
 use std::{
-    io::{self, Write},
+    io::{self, Stdout, Write},
+    thread::sleep,
     time::Duration,
 };
 
-use super::{Display, DisplayLocation};
+use crate::database::{self, Database};
 
-pub fn handle_pressed_keys(display: &mut Display) {
+use super::{
+    components::{self, main_components, todo_component},
+    read_text_boxes, Display, DisplayLocation,
+};
+
+pub fn handle_pressed_keys(display: &mut Display, database: &mut Database) {
     if poll(Duration::from_millis(10)).unwrap() {
         let key = read().unwrap();
 
@@ -23,25 +29,64 @@ pub fn handle_pressed_keys(display: &mut Display) {
         match key {
             Event::Key(event) => match event.code {
                 KeyCode::Down => {
-                    if (display.todos_total_len * 2) - 1 < display.current_todo {
-                        display.current_todo = 2;
-                    } else {
-                        display.current_todo += 2;
+                    if display.display == DisplayLocation::Main {
+                        if (display.todos_total_len * 2) - 1 < display.current_todo {
+                            display.current_todo = 2;
+                        } else {
+                            display.current_todo += 2;
+                        }
+                        let _ = draw(display, main_components);
+                    } else if display.display == DisplayLocation::Todo {
+                        let _ = draw(display, todo_component);
                     }
-                    let _ = draw(display);
                 }
                 KeyCode::Up => {
-                    if (display.todos_total_len * 2) - 1 == display.current_todo {
-                        display.current_todo -= 2;
-                    } else if 2 >= display.current_todo {
-                        display.current_todo = display.todos_total_len * 2;
-                    } else {
-                        display.current_todo -= 2;
+                    if display.display == DisplayLocation::Main {
+                        if (display.todos_total_len * 2) - 1 == display.current_todo {
+                            display.current_todo -= 2;
+                        } else if 2 >= display.current_todo {
+                            display.current_todo = display.todos_total_len * 2;
+                        } else {
+                            display.current_todo -= 2;
+                        }
+                        let _ = draw(display, main_components);
+                    } else if display.display == DisplayLocation::Todo {
+                        let _ = draw(display, todo_component);
                     }
-                    let _ = draw(display);
                 }
                 KeyCode::Char('q') => display.display = DisplayLocation::Quit,
-                KeyCode::Char('r') => {}
+                KeyCode::Char('r') => {
+                    display.todos = database::get_data(database, display.maxl);
+                    clearscreen::clear().expect("");
+                    display.current_todo = 2;
+                    sleep(Duration::from_millis(10));
+                    let _ = draw(display, components::main_components);
+                }
+                KeyCode::Char(' ') => {
+                    let todo_id = &display.todos[(display.current_todo / 2) as usize - 1]["id"];
+                    let _ = database::done(database, todo_id.as_str().parse().unwrap());
+                    display.todos = database::get_data(database, display.maxl);
+                    let _ = draw(display, components::main_components);
+                }
+                KeyCode::Enter => {
+                    display.display = DisplayLocation::Todo;
+                    let id = &display.todos[(display.current_todo / 2) as usize - 1]["id"];
+                    display.todo_item = database::get_one_todo(database, id.parse().unwrap());
+                    let _ = draw(display, components::todo_component);
+                }
+                KeyCode::Backspace => {
+                    if display.display != DisplayLocation::Main {
+                        display.display = DisplayLocation::Main;
+                        let _ = draw(display, components::main_components);
+                    }
+                }
+                KeyCode::Char('a') => {
+                    display.display = DisplayLocation::Add;
+                    let _ = draw(display, components::add_todo_component);
+
+                    let _ = read_text_boxes(display);
+                    // let _ = new_todo("title".to_owned(), "description".to_owned());
+                }
                 _ => {}
             },
             _ => {}
@@ -49,49 +94,24 @@ pub fn handle_pressed_keys(display: &mut Display) {
     }
 }
 
-pub fn draw(display: &mut Display) -> io::Result<()> {
+pub fn draw(
+    display: &mut Display,
+    components: fn(
+        display: &mut Display,
+        stdout: &mut Stdout,
+        y: u16,
+        z: &mut u16,
+    ) -> io::Result<()>,
+) -> io::Result<()> {
     let mut stdout = io::stdout();
     stdout.execute(terminal::Clear(terminal::ClearType::All))?;
+    let mut z: u16 = 0;
 
-    let mut z = 0;
-    let cursor_start = 2;
-    let cursor_row = display.current_todo;
-    let id_start = 4;
-    let is_done_start = 10;
-    let title_done_start = 18;
     for y in 0..display.maxl {
         for x in 0..display.maxc {
             if (y == 0 || y == display.maxl - 1) || (x == 0 || x == display.maxc - 1) {
-                if z != y / 2 {
-                    z = y / 2;
-                    let todo_index = (z - 1) as usize;
-                    if display.todos.len() > todo_index {
-                        stdout
-                            .queue(cursor::MoveTo(cursor_start, cursor_row))?
-                            .queue(style::PrintStyledContent("*".yellow()))?;
+                let _ = components(display, &mut stdout, y, &mut z);
 
-                        let is_done = &display.todos[todo_index]["is_done"];
-
-                        stdout.queue(cursor::MoveTo(id_start, y))?.queue(
-                            style::PrintStyledContent(
-                                (display.todos[todo_index]["id"].as_str()).yellow(),
-                            ),
-                        )?;
-                        stdout.queue(cursor::MoveTo(is_done_start, y))?.queue(
-                            style::PrintStyledContent(if (is_done) == "true" {
-                                "[x]".white()
-                            } else {
-                                "[ ]".white()
-                            }),
-                        )?;
-
-                        stdout.queue(cursor::MoveTo(title_done_start, y))?.queue(
-                            style::PrintStyledContent(
-                                display.todos[todo_index]["title"].as_str().cyan(),
-                            ),
-                        )?;
-                    }
-                }
                 if y == 0 && x == 0 {
                     stdout
                         .queue(cursor::MoveTo(x, y))?
