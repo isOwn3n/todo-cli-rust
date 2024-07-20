@@ -1,22 +1,17 @@
-use std::io::stdout;
-
 use crossterm::{
-    cursor::{Hide, Show},
-    terminal::{disable_raw_mode, enable_raw_mode, size},
+    cursor::Show,
+    terminal::{disable_raw_mode, enable_raw_mode},
     ExecutableCommand,
 };
 use display::Display;
 
-mod args;
 mod database;
 mod display;
 
 fn main() -> std::io::Result<()> {
     clearscreen::clear().expect("failed to clear screen");
     // init the screen
-    let mut sc = stdout();
-    let (maxc, maxl) = size().unwrap();
-    sc.execute(Hide)?;
+    let (mut sc, maxc, maxl, functions) = display::init_screen()?;
     enable_raw_mode()?;
 
     // Init DB
@@ -29,11 +24,19 @@ fn main() -> std::io::Result<()> {
     let mut todos_count = database::get_count(&mut database).unwrap();
 
     // Display data
-    let mut display = Display::new(maxc, maxl, &mut todos_count, todos.clone());
+    let mut display = Display::new(
+        maxc,
+        maxl,
+        &mut (todos.len() as u16),
+        &mut todos_count,
+        todos.clone(),
+        functions,
+        &mut sc,
+    );
 
-    let _ = display::draw::draw(&mut display, display::components::main_components);
+    let _ = display::draw::draw(&mut display, display::components::main_component);
 
-    let _ = display.display_holder(&mut sc, &mut database);
+    let _ = display.display_holder(&mut database);
 
     sc.execute(Show)?;
     disable_raw_mode()?;
