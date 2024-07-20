@@ -25,11 +25,11 @@ pub fn create_todos_table(conn: &mut Connection) {
 //     Ok(())
 // }
 
-// pub fn add_new_todo(conn: &mut Connection, title: &str, description: &str) -> Result<()> {
-//     let mut new_todo = Todo::new(&title, &description);
-//     new_todo.save(conn)?;
-//     Ok(())
-// }
+pub fn add_new_todo(conn: &mut Connection, title: &str, description: &str) -> Result<()> {
+    let mut new_todo = Todo::new(&title, &description);
+    new_todo.save(conn)?;
+    Ok(())
+}
 
 pub fn done_todo(conn: &mut Connection, todo_id: u32) -> Result<()> {
     Todo::done(conn, todo_id)
@@ -111,4 +111,9 @@ pub fn get_count(conn: &mut Connection) -> Result<u16> {
     } else {
         Ok(0)
     }
+}
+
+pub fn delete_a_todo(conn: &mut Connection, id: u32) -> Result<()> {
+    Todo::delete(conn, id)?;
+    Ok(())
 }

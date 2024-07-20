@@ -1,15 +1,10 @@
-use anyhow::Result as AnyHowResult;
-use std::collections::HashMap;
-
-use sqlite::{Connection, Result, State, Statement};
+use sqlite::{Connection, Result, Statement};
 
 pub struct Todo {
     id: u32,
     title: String,
     description: String,
     is_done: bool,
-    created_at: String,
-    updated_at: String,
 }
 
 // struct FilterTodoArgs {
@@ -26,8 +21,6 @@ impl Todo {
             title: title.to_string(),
             description: description.to_string(),
             is_done: false,
-            created_at: String::new(),
-            updated_at: String::new(),
         }
     }
 
@@ -37,8 +30,6 @@ impl Todo {
             title: title.to_string(),
             description: description.to_string(),
             is_done,
-            created_at: String::new(),
-            updated_at: String::new(),
         }
     }
 
@@ -100,5 +91,12 @@ impl Todo {
         let query = "SELECT COUNT(*) as count FROM todos";
         let statement = conn.prepare(query)?;
         Ok(statement)
+    }
+    pub fn delete(conn: &mut Connection, id: u32) -> Result<()> {
+        let query = "DELETE FROM todos WHERE id = ?;";
+        let mut statement = conn.prepare(query)?;
+        statement.bind((1, id.to_string().as_str()))?;
+        statement.next()?;
+        Ok(())
     }
 }
